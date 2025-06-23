@@ -1,0 +1,76 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { AvatarVideo } from '../components/Avatar/AvatarVideo'
+import { TextChat } from '../components/UI/TextChat'
+import { useHeyGen } from '../hooks/useHeyGen'
+import { useLiveKit } from '../hooks/useLiveKit'
+import { useOpenAI } from '../hooks/useOpenAI'
+import { ConversationMessage, AIMode } from '../types'
+
+export default function AvatarPage() {
+  // State
+  const [isAvatarSpeaking, setIsAvatarSpeaking] = useState<boolean>(false)
+  const [conversation, setConversation] = useState<ConversationMessage[]>([])
+  const [aiMode, setAiMode] = useState<AIMode>('heygen')
+
+  // Custom hooks
+  const { streamData, connectionStatus, createHeyGenStream, sendTextToAvatar, setConnectionStatus } = useHeyGen()
+  const { videoRef, isConnected, connectToLiveKit, disconnect } = useLiveKit(streamData, setConnectionStatus)
+  const { generateOpenAIResponse } = useOpenAI()
+
+  // Message handling
+  const handleUserMessage = useCallback(async (userMessage: string) => {
+    try {
+      setIsAvatarSpeaking(true)
+      setConnectionStatus('🤖 Avatar thinking...')
+      
+      // Add user message to conversation
+      setConversation(prev => [...prev, { role: 'user', message: userMessage }])
+      
+      if (aiMode === 'heygen') {
+        // Use HeyGen's built-in AI with 'talk' task type
+        await sendTextToAvatar(userMessage, 'talk')
+      } else {
+        // Use OpenAI and then make avatar repeat the response
+        setConnectionStatus('🤖 Consulting OpenAI...')
+        const aiResponse = await generateOpenAIResponse(userMessage)
+        
+        // Add AI response to conversation
+        setConversation(prev => [...prev, { role: 'avatar', message: aiResponse }])
+        
+        // Make avatar speak the OpenAI response
+        await sendTextToAvatar(aiResponse, 'repeat')
+      }
+      
+    } catch (error) {
+      console.error('Error handling user message:', error)
+      setConnectionStatus('❌ Error processing message')
+    } finally {
+      setIsAvatarSpeaking(false)
+    }
+  }, [sendTextToAvatar, aiMode, generateOpenAIResponse, setConnectionStatus])
+
+  return (
+    <div>
+      <AvatarVideo
+        videoRef={videoRef}
+        connectionStatus={connectionStatus}
+        streamData={streamData}
+        isConnected={isConnected}
+        onCreateStream={createHeyGenStream}
+        onConnect={connectToLiveKit}
+        onDisconnect={disconnect}
+      />
+      
+      <TextChat
+        isConnected={isConnected}
+        conversation={conversation}
+        aiMode={aiMode}
+        onSendMessage={handleUserMessage}
+        onAiModeChange={setAiMode}
+        isAvatarSpeaking={isAvatarSpeaking}
+      />
+    </div>
+  )
+}
