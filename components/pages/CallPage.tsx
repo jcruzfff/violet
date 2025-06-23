@@ -6,6 +6,7 @@ import ChatWindow from '../UI/ChatWindow'
 import { useHeyGen } from '../../hooks/useHeyGen'
 import { useLiveKit } from '../../hooks/useLiveKit'
 import { useOpenAI } from '../../hooks/useOpenAI'
+import { useCopilot } from '../../hooks/useCopilot'
 import { useWallet } from '../../providers/WalletProvider'
 import { ConversationMessage, StreamData, AIMode } from '../../types'
 import Image from 'next/image'
@@ -46,6 +47,7 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
   const setIsRecordingRef = useRef(setIsRecording)
   const { videoRef, isConnected, connectToLiveKit, disconnect } = useLiveKit(initialStreamData || streamData, setConnectionStatus)
   const { generateOpenAIResponse } = useOpenAI()
+  const { generateCopilotResponse, conversationId, resetConversation } = useCopilot()
 
   // Message handling
   const handleUserMessage = useCallback(async (userMessage: string) => {
@@ -63,26 +65,66 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
       setConversation(prev => [...prev, { role: 'user', message: userMessage }])
       
       if (aiMode === 'heygen') {
-        console.log('🔵 [CallPage] Using HeyGen mode - calling sendTextToAvatar with "talk"')
+        console.log('🔵 [CallPage] Using HeyGen mode - enhanced with conversation context')
         console.log('🔵 [CallPage] Message being sent:', userMessage)
-        
-        const result = await sendTextToAvatar(userMessage, 'talk')
-        console.log('🔵 [CallPage] sendTextToAvatar result:', result)
-        console.log('🔵 [CallPage] HeyGen talk completed successfully')
+
+        // Try to use the enhanced Copilot API with conversation context
+        try {
+          const aiResponse = await generateCopilotResponse({
+            messages: [...conversation, { role: "user", message: userMessage }],
+          });
+
+          setConversation((prev) => [
+            ...prev,
+            { role: "avatar", message: aiResponse },
+          ]);
+
+          console.log("🔵 [CallPage] Enhanced AI Response:", aiResponse);
+
+          // Make avatar speak the AI response
+          const result = await sendTextToAvatar(aiResponse, "repeat");
+          console.log("🔵 [CallPage] sendTextToAvatar result:", result);
+          console.log("🔵 [CallPage] HeyGen enhanced mode completed successfully");
+        } catch (error) {
+          console.error("🔴 [CallPage] Enhanced mode failed, falling back to basic mode:", error);
+          // Fallback to basic mode if enhanced API fails
+          const result = await sendTextToAvatar(userMessage, 'talk')
+          console.log('🔵 [CallPage] sendTextToAvatar result:', result)
+          console.log('🔵 [CallPage] HeyGen basic mode completed successfully')
+        }
         
       } else {
-        console.log('🔵 [CallPage] Using OpenAI mode')
-        setConnectionStatus('🤖 Consulting OpenAI...')
-        const aiResponse = await generateOpenAIResponse(userMessage)
-        console.log('🔵 [CallPage] OpenAI response:', aiResponse)
+        console.log('🔵 [CallPage] Using OpenAI mode with conversation context')
+        setConnectionStatus('🤖 Consulting AI Assistant...')
         
-        // Add AI response to conversation
-        setConversation(prev => [...prev, { role: 'avatar', message: aiResponse }])
-        
-        // Make avatar speak the OpenAI response
-        console.log('🔵 [CallPage] Making avatar repeat OpenAI response')
-        await sendTextToAvatar(aiResponse, 'repeat')
-        console.log('🔵 [CallPage] OpenAI flow completed successfully')
+        // Try enhanced API first, fallback to basic OpenAI
+        try {
+          const aiResponse = await generateCopilotResponse({
+            messages: [...conversation, { role: "user", message: userMessage }],
+          });
+          console.log('🔵 [CallPage] Enhanced Copilot response:', aiResponse)
+          
+          // Add AI response to conversation
+          setConversation(prev => [...prev, { role: 'avatar', message: aiResponse }])
+          
+          // Make avatar speak the AI response
+          console.log('🔵 [CallPage] Making avatar repeat enhanced AI response')
+          await sendTextToAvatar(aiResponse, 'repeat')
+          console.log('🔵 [CallPage] Enhanced OpenAI flow completed successfully')
+        } catch (error) {
+          console.error('🔴 [CallPage] Enhanced API failed, falling back to basic OpenAI:', error)
+          // Fallback to basic OpenAI
+          const aiResponse = await generateOpenAIResponse(userMessage)
+          console.log('🔵 [CallPage] Basic OpenAI response:', aiResponse)
+          
+          // Add AI response to conversation
+          setConversation(prev => [...prev, { role: 'avatar', message: aiResponse }])
+          
+          // Make avatar speak the OpenAI response
+          console.log('🔵 [CallPage] Making avatar repeat basic OpenAI response')
+          await sendTextToAvatar(aiResponse, 'repeat')
+          console.log('🔵 [CallPage] Basic OpenAI flow completed successfully')
+        }
       }
       
       console.log('🔵 [CallPage] Message handling completed successfully')
@@ -95,7 +137,7 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
       setIsAvatarSpeaking(false)
       console.log('🔵 [CallPage] handleUserMessage finished')
     }
-  }, [sendTextToAvatar, aiMode, generateOpenAIResponse, setConnectionStatus, isConnected])
+  }, [sendTextToAvatar, aiMode, generateOpenAIResponse, generateCopilotResponse, setConnectionStatus, isConnected, conversation])
 
   // Transcribe audio using OpenAI Whisper API
   const transcribeAudioWithOpenAI = useCallback(async (audioBlob: Blob) => {
