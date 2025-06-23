@@ -21,100 +21,62 @@ export const AvatarVideo: React.FC<AvatarVideoProps> = ({
   onDisconnect
 }) => {
   return (
-    <div style={{ textAlign: 'center', padding: '2rem' }}>
-      <h1>HeyGen Avatar Stream</h1>
-      
-      <div style={{ marginBottom: '1rem' }}>
-        {!streamData ? (
-          <button
-            onClick={onCreateStream}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              marginRight: '10px'
-            }}
-          >
-            Create Stream
-          </button>
-        ) : !isConnected ? (
-          <button
-            onClick={onConnect}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              marginRight: '10px'
-            }}
-          >
-            Connect to Avatar Stream
-          </button>
-        ) : (
-          <button
-            onClick={onDisconnect}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#f44336',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              marginRight: '10px'
-            }}
-          >
-            Disconnect
-          </button>
-        )}
-      </div>
-
+    <div className="relative w-full h-full bg-black rounded-tr-[32px] rounded-br-[32px] overflow-hidden">
+      {/* Video Element - Properly fitted to container */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        controls
-        width={720}
-        height={480}
-        style={{ borderRadius: '8px', border: '2px solid #ddd' }}
+        muted
+        className="w-full h-full object-contain"
+        style={{ backgroundColor: '#000' }}
       />
       
-      <p style={{ marginTop: '1rem', color: '#666', fontSize: '14px' }}>
-        Status: {connectionStatus}
-      </p>
-
-      {streamData && (
-        <div style={{ 
-          marginTop: '1rem', 
-          padding: '10px', 
-          backgroundColor: '#e8f5e8', 
-          border: '1px solid #4CAF50',
-          borderRadius: '6px',
-          maxWidth: '600px',
-          margin: '1rem auto',
-          fontSize: '12px'
-        }}>
-          <strong>📡 Stream URL:</strong>
-          <p style={{ fontFamily: 'monospace', wordBreak: 'break-all', margin: '4px 0 0 0' }}>
-            {streamData.stream_url}
-          </p>
-          <strong>🔑 Access Token:</strong>
-          <p style={{ fontFamily: 'monospace', wordBreak: 'break-all', margin: '4px 0 0 0' }}>
-            {streamData.access_token.substring(0, 50)}...
-          </p>
-          <strong>🆔 Session ID:</strong>
-          <p style={{ fontFamily: 'monospace', wordBreak: 'break-all', margin: '4px 0 0 0' }}>
-            {streamData.session_id}
-          </p>
+      {/* Connection Status Overlay (only show when not connected) */}
+      {!isConnected && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <div className="text-center text-white">
+            {!streamData ? (
+              <div>
+                <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-lg">Preparing stream...</p>
+                <button
+                  onClick={onCreateStream}
+                  className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Create Stream
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-lg">Connecting to avatar...</p>
+                <p className="text-sm text-gray-300 mb-4">{connectionStatus}</p>
+                <button
+                  onClick={onConnect}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Connect to Avatar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* Debug Info - Commented out for now */}
+      {/* 
+      {streamData && process.env.NODE_ENV === 'development' && (
+        <div className="absolute top-4 left-4 bg-black/80 text-white p-3 rounded-lg text-xs max-w-xs">
+          <div><strong>Stream URL:</strong></div>
+          <div className="font-mono break-all text-[10px] mb-2">{streamData.stream_url}</div>
+          <div><strong>Access Token:</strong></div>
+          <div className="font-mono break-all text-[10px] mb-2">{streamData.access_token.substring(0, 30)}...</div>
+          <div><strong>Session ID:</strong></div>
+          <div className="font-mono break-all text-[10px]">{streamData.session_id}</div>
+        </div>
+      )}
+      */}
     </div>
   )
 } 

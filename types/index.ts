@@ -23,6 +23,7 @@ export interface HeyGenStreamResponse {
 export interface ConversationMessage {
   role: 'user' | 'avatar'
   message: string
+  timestamp?: Date
 }
 
 export interface BrowserInfo {

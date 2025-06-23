@@ -1,9 +1,17 @@
-import { useState, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import { StreamData, HeyGenTokenResponse, HeyGenStreamResponse } from '../types'
 
-export const useHeyGen = () => {
-  const [streamData, setStreamData] = useState<StreamData | null>(null)
+export const useHeyGen = (initialStreamData?: StreamData | null) => {
+  const [streamData, setStreamData] = useState<StreamData | null>(initialStreamData || null)
   const [connectionStatus, setConnectionStatus] = useState<string>('Ready to create stream')
+  
+  // Update streamData if initialStreamData changes
+  React.useEffect(() => {
+    if (initialStreamData && !streamData) {
+      console.log('🟢 [useHeyGen] Setting streamData from initialStreamData:', initialStreamData)
+      setStreamData(initialStreamData)
+    }
+  }, [initialStreamData, streamData])
 
   const closeAllSessions = useCallback(async (): Promise<void> => {
     try {
@@ -74,8 +82,8 @@ export const useHeyGen = () => {
           'Authorization': `Bearer ${tokenData.data.token}`,
         },
         body: JSON.stringify({
-          quality: 'medium',
-          avatar_name: 'Pedro_CasualLook_public',
+          quality: 'high',
+          avatar_name: 'Elenora_IT_Sitting_public',
           version: 'v2',
           video_encoding: 'H264',
           knowledge_base: 'You are a helpful finance advisor. Provide clear, actionable advice about budgeting, investing, and financial planning. Keep responses concise and practical.'
@@ -84,6 +92,9 @@ export const useHeyGen = () => {
 
       if (!streamResponse.ok) {
         const errorText = await streamResponse.text()
+        if (streamResponse.status === 400 && errorText.includes('quota_not_enough')) {
+          throw new Error('HeyGen quota exceeded. Please wait before creating new streams.')
+        }
         throw new Error(`Stream creation failed: ${streamResponse.status} - ${errorText}`)
       }
 
@@ -118,8 +129,11 @@ export const useHeyGen = () => {
       
     } catch (error) {
       console.error('HeyGen stream creation error:', error)
+      await closeAllSessions() // Clean up any partial sessions
       if (error instanceof TypeError && error.message.includes('fetch')) {
         setConnectionStatus(`❌ Network Error: Check your internet connection and try again`)
+      } else if (error instanceof Error && error.message.includes('quota exceeded')) {
+        setConnectionStatus(`❌ ${error.message}`)
       } else {
         setConnectionStatus(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
@@ -127,10 +141,30 @@ export const useHeyGen = () => {
   }, [closeAllSessions])
 
   const sendTextToAvatar = useCallback(async (text: string, taskType: 'talk' | 'repeat' = 'repeat') => {
-    if (!streamData) return
+    console.log('🟢 [useHeyGen] sendTextToAvatar called')
+    console.log('🟢 [useHeyGen] Text:', text)
+    console.log('🟢 [useHeyGen] Task type:', taskType)
+    console.log('🟢 [useHeyGen] StreamData exists:', !!streamData)
+    
+    if (!streamData) {
+      console.log('🔴 [useHeyGen] No streamData available - returning early')
+      return
+    }
+    
+    console.log('🟢 [useHeyGen] StreamData session_id:', streamData.session_id)
     
     try {
+      console.log('🟢 [useHeyGen] Setting status to "Avatar speaking..."')
       setConnectionStatus('💬 Avatar speaking...')
+      
+      const requestBody = {
+        session_id: streamData.session_id,
+        text: text,
+        task_type: taskType
+      }
+      
+      console.log('🟢 [useHeyGen] Request body:', requestBody)
+      console.log('🟢 [useHeyGen] Making API call to HeyGen...')
       
       const response = await fetch('https://api.heygen.com/v1/streaming.task', {
         method: 'POST',
@@ -138,25 +172,33 @@ export const useHeyGen = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.NEXT_PUBLIC_HEYGEN_API_KEY}`,
         },
-        body: JSON.stringify({
-          session_id: streamData.session_id,
-          text: text,
-          task_type: taskType
-        })
+        body: JSON.stringify(requestBody)
       })
       
+      console.log('🟢 [useHeyGen] API response status:', response.status)
+      console.log('🟢 [useHeyGen] API response ok:', response.ok)
+      
       if (response.ok) {
+        const responseData = await response.text()
+        console.log('🟢 [useHeyGen] API response data:', responseData)
+        
         setConnectionStatus('✅ Avatar spoke successfully')
         if (taskType === 'talk') {
+          console.log('🟢 [useHeyGen] Talk mode - setting 2 second timeout for ready status')
           setTimeout(() => {
+            console.log('🟢 [useHeyGen] Setting status to "Connected and ready"')
             setConnectionStatus('✅ Connected and ready')
           }, 2000)
         }
+        console.log('🟢 [useHeyGen] sendTextToAvatar completed successfully')
       } else {
-        console.error('Failed to send text to avatar:', response.status)
+        const errorText = await response.text()
+        console.error('🔴 [useHeyGen] Failed to send text to avatar:', response.status, errorText)
+        setConnectionStatus(`❌ API Error: ${response.status}`)
       }
     } catch (error) {
-      console.error('Error sending text to avatar:', error)
+      console.error('🔴 [useHeyGen] Error sending text to avatar:', error)
+      setConnectionStatus('❌ Network error')
     }
   }, [streamData])
 
