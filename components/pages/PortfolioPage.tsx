@@ -1,15 +1,27 @@
 import { useWallet } from '../../providers/WalletProvider'
+import { useSupraPrices } from '../../hooks/useSupraPrices'
 import WalletDropdown from '../UI/WalletDropdown'
 
 interface PortfolioPageProps {
   onNext: () => void
   onBack: () => void
 }
+function formatPrice(raw: string, decimals: string): number {
+  return parseFloat(raw) / Math.pow(10, parseInt(decimals))
+}
+
+// Mapping Supra pair index to symbol
+const symbolMap: Record<string, string> = {
+  '0': 'BTC',
+  '1': 'ETH',
+  '10': 'SOL',
+  '16': 'ADA'
+}
 
 export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
   // Get wallet context
   const { user } = useWallet()
-
+  const { data, loading } = useSupraPrices()
   // Redirect if no wallet connected
   if (!user) {
     onBack() // Go back to landing page
@@ -24,17 +36,25 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
   }
 
   // Portfolio data with sophisticated color palette
-  const portfolioData = [
-    { name: 'Bitcoin', symbol: 'BTC', percentage: 40, value: 9827, change: 5.2, color: '#507084', icon: '₿' }, // Augusta Blue
-    { name: 'Ethereum', symbol: 'ETH', percentage: 30, value: 7370, change: 8.1, color: '#66A3A3', icon: 'Ξ' }, // Trevi
-    { name: 'Solana', symbol: 'SOL', percentage: 20, value: 4913, change: 12.7, color: '#B38D5F', icon: '◎' }, // Crown Gold
-    { name: 'Cardano', symbol: 'ADA', percentage: 10, value: 2457, change: -2.1, color: '#7B7B7B', icon: '₳' } // Pantheon
-  ]
+  const portfolioData = data?.map((item:any) => {
+    const symbol = symbolMap[item?.pairIndex]
+    const price = formatPrice(item?.price, item?.decimals) || 0
+
+    return {
+      name: symbol === 'BTC' ? 'Bitcoin' : symbol === 'ETH' ? 'Ethereum' : symbol === 'SOL' ? 'Solana' : 'Cardano',
+      symbol,
+      percentage: symbol === 'BTC' ? 40 : symbol === 'ETH' ? 30 : symbol === 'SOL' ? 20 : 10,
+      value:price,
+      change: 0, // placeholder or use historical % change
+      color: symbol === 'BTC' ? '#507084' : symbol === 'ETH' ? '#66A3A3' : symbol === 'SOL' ? '#B38D5F' : '#7B7B7B',
+      icon: symbol === 'BTC' ? '₿' : symbol === 'ETH' ? 'Ξ' : symbol === 'SOL' ? '◎' : '₳'
+    }
+  })
 
   // Calculate angles for the pie chart
   const createPieSegments = () => {
     let currentAngle = 0
-    return portfolioData.map(item => {
+    return portfolioData?.map((item:any) => {
       const angle = (item.percentage / 100) * 360
       const segment = {
         ...item,
@@ -43,9 +63,9 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
       }
       currentAngle += angle
       return segment
-    })
+    }) || []
   }
-
+  console.log('portfolioData', portfolioData)
   const segments = createPieSegments()
 
   // Create SVG path for donut segment
@@ -121,7 +141,7 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
             <svg width="400" height="400" className="absolute inset-0">
               <defs>
                 {/* Add subtle gradients for each segment */}
-                {segments.map((segment, index) => (
+                {segments?.map((segment: any, index: any) => (
                   <linearGradient key={index} id={`gradient-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor={segment.color} stopOpacity="1" />
                     <stop offset="100%" stopColor={segment.color} stopOpacity="0.8" />
@@ -130,7 +150,7 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
               </defs>
               
               {/* Chart segments */}
-              {segments.map((segment, index) => (
+              {segments?.map((segment:any, index:any) => (
                 <path
                   key={index}
                   d={createPath(200, 200, 120, 180, segment.startAngle, segment.endAngle)}
@@ -208,7 +228,7 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
 
         {/* Portfolio Items Grid */}
         <div className="grid grid-cols-2 gap-4 max-w-2xl w-full mb-4">
-          {portfolioData.map((item, index) => (
+          {portfolioData?.map((item:any, index:any) => (
             <div key={index} className="bg-[#272727] rounded-xl p-4 flex items-center justify-between hover:bg-[#2f2f2f] transition-colors">
               <div className="flex items-center space-x-3">
                 <div 
