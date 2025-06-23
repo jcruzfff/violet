@@ -493,11 +493,11 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
               </div>
 
               {/* Center: APY and Risk Indicator */}
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-6">
                 <span className="text-green-600 text-[14px] font-semibold">4-6% APY</span>
                 
                 {/* Risk dots */}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-6">
                   <div className="flex space-x-[12px]">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <div className="w-2 h-2 bg-[rgba(229,231,235,0.19)] rounded-full"></div>
@@ -542,20 +542,21 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
                           setRiskLevel(level)
                           setShowRiskDropdown(false)
                         }}
-                        className={`w-full px-4 py-2 text-left hover:bg-[#404040] transition-colors flex items-center space-x-2 ${
+                        className={`w-full py-2 text-left hover:bg-[#404040] transition-colors flex items-center ${
                           riskLevel === level ? 'bg-[#404040]' : ''
                         }`}
+                        style={{ paddingLeft: '24px' }}
                       >
-                        <div className="bg-[rgba(220,252,231,0.1)] rounded-[53px] w-[25px] h-[25px] flex items-center justify-center">
+                        <div className="flex items-center space-x-6">
                           <Image 
                             src={`/icons/${level === 'Aggressive' ? 'aggreseive' : level.toLowerCase()}-icon.svg`}
                             alt={level}
-                            width={14}
-                            height={14}
-                            className="w-3.5 h-3.5"
+                            width={20}
+                            height={20}
+                            className="w-5 h-5"
                           />
+                          <span className="text-white text-[16px] font-medium">{level}</span>
                         </div>
-                        <span className="text-white text-[16px] font-medium">{level}</span>
                       </button>
                     ))}
                   </div>
