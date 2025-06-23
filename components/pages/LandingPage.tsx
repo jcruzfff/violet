@@ -1,12 +1,34 @@
 import Image from 'next/image'
+import { useWallet } from '../../providers/WalletProvider'
+import WalletDropdown from '../UI/WalletDropdown'
 
 interface LandingPageProps {
   onNext: () => void
 }
 
 export default function LandingPage({ onNext }: LandingPageProps) {
+  const { user } = useWallet()
+
+  const handleLaunchApp = () => {
+    if (user) {
+      // If user is already connected, go to portfolio
+      onNext()
+      onNext() // Skip wallet connection page
+    } else {
+      // If no user, go to wallet connection
+      onNext()
+    }
+  }
+
   return (
     <div className="min-h-screen relative overflow-hidden bg-black">
+      {/* Header with Wallet Dropdown */}
+      {user && (
+        <div className="absolute top-0 right-0 z-20 p-4">
+          <WalletDropdown position="right" />
+        </div>
+      )}
+
       {/* Hero Background */}
       <div className="absolute inset-0 z-0">
         <Image
@@ -40,10 +62,10 @@ export default function LandingPage({ onNext }: LandingPageProps) {
           
           {/* CTA Button */}
           <button
-            onClick={onNext}
+            onClick={handleLaunchApp}
             className="bg-[#B38D5F] text-white px-28 py-4 cursor-pointer rounded-xl text-lg font-semibold hover:bg-[#B38D5F]/80 transition-all duration-300 transform hover:scale-105 shadow-lg"
           >
-            Launch App
+            {user ? 'Continue to App' : 'Launch App'}
           </button>
         </div>
 

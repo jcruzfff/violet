@@ -1,4 +1,5 @@
 import { useWallet } from '../../providers/WalletProvider'
+import WalletDropdown from '../UI/WalletDropdown'
 
 interface PortfolioPageProps {
   onNext: () => void
@@ -8,6 +9,19 @@ interface PortfolioPageProps {
 export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
   // Get wallet context
   const { user } = useWallet()
+
+  // Redirect if no wallet connected
+  if (!user) {
+    onBack() // Go back to landing page
+    return (
+      <div className="min-h-screen bg-[#141414] flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Redirecting to connect wallet...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Portfolio data with sophisticated color palette
   const portfolioData = [
@@ -81,15 +95,12 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
             </div>
           </button>
           
-          {/* User Profile - Now showing real wallet info */}
-          <div className="bg-[#303030] border border-[#535353] rounded-lg px-4 py-2 flex items-center space-x-3">
-            <div className="w-6 h-6 bg-[#464646] rounded-full"></div>
-            <span className="text-white text-sm font-medium">
-              {user?.walletAddress ? formatWalletAddress(user.walletAddress) : 'No wallet'}
-            </span>
-          </div>
+          {/* User Profile with Dropdown */}
+          <WalletDropdown position="right" />
         </div>
       </div>
+
+
 
       {/* Main Content */}
       <div className="flex flex-col items-center justify-center px-6 py-12">
@@ -176,7 +187,7 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
                 </div>
                 <div>
                   <p className="text-white text-sm font-medium">Wallet Connected</p>
-                  <p className="text-gray-400 text-xs">Flow EVM • {formatWalletAddress(user.walletAddress || '')}</p>
+                  <p className="text-gray-400 text-xs">Base Sepolia • {formatWalletAddress(user.smartWalletAddress || user.walletAddress || '')}</p>
                 </div>
               </div>
               <div className="text-right">

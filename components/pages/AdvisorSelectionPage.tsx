@@ -2,26 +2,52 @@
 
 import React, { useState } from 'react'
 import { useHeyGen } from '../../hooks/useHeyGen'
+import { useWallet } from '../../providers/WalletProvider'
 import { StreamData } from '../../types'
+import WalletDropdown from '../UI/WalletDropdown'
 
 interface AdvisorSelectionPageProps {
-  onNext: () => void
-  onBack: () => void
-  onStreamCreated: (data: StreamData) => void
-  onAdvisorSelected: (advisor: string) => void
+  onNextAction: () => void
+  onBackAction: () => void
+  onStreamCreatedAction: (data: StreamData) => void
+  onAdvisorSelectedAction: (advisor: string) => void
 }
 
 export default function AdvisorSelectionPage({ 
-  onNext, 
-  onBack, 
-  onStreamCreated, 
-  onAdvisorSelected 
+  onNextAction, 
+  onBackAction, 
+  onStreamCreatedAction, 
+  onAdvisorSelectedAction 
 }: AdvisorSelectionPageProps) {
   const [isCreatingStream, setIsCreatingStream] = useState<boolean>(false)
   const [connectingAdvisor, setConnectingAdvisor] = useState<string>('')
 
   // Add HeyGen hook to create streams
   const { streamData, connectionStatus, createHeyGenStream, setConnectionStatus } = useHeyGen()
+  
+  // Get wallet context for dropdown
+  const { user } = useWallet()
+
+  // Pass stream data to parent when it's available
+  React.useEffect(() => {
+    if (streamData) {
+      console.log('✅ Stream data created, passing to parent')
+      onStreamCreatedAction(streamData)
+    }
+  }, [streamData, onStreamCreatedAction])
+
+  // Wallet protection check - must be AFTER all hooks
+  if (!user) {
+    onBackAction() // Go back to previous page (which should redirect to landing)
+    return (
+      <div className="min-h-screen bg-[#141414] flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Redirecting to connect wallet...</p>
+        </div>
+      </div>
+    )
+  }
 
   const advisors = [
     {
@@ -66,14 +92,14 @@ export default function AdvisorSelectionPage({
       await createHeyGenStream()
       
       // Pass the selected advisor to parent immediately
-      onAdvisorSelected(advisorName)
+      onAdvisorSelectedAction(advisorName)
       
       setConnectionStatus('✅ Stream created! Connecting to ' + advisorName + '...')
       setIsCreatingStream(false) // Reset creating state so useEffect can run
       
       // Small delay to show success message, then proceed
       setTimeout(() => {
-        onNext()
+        onNextAction()
       }, 1000)
       
     } catch (error) {
@@ -84,13 +110,7 @@ export default function AdvisorSelectionPage({
     }
   }
 
-  // Pass stream data to parent when it's available
-  React.useEffect(() => {
-    if (streamData) {
-      console.log('✅ Stream data created, passing to parent')
-      onStreamCreated(streamData)
-    }
-  }, [streamData, onStreamCreated])
+
 
   return (
     <div className="min-h-screen bg-[#141414] relative">
@@ -99,7 +119,7 @@ export default function AdvisorSelectionPage({
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           {/* Back Button */}
           <button
-            onClick={onBack}
+            onClick={onBackAction}
             className="bg-[#303030] border border-[#535353] rounded-lg p-2 hover:bg-[#404040] transition-colors"
             disabled={isCreatingStream}
           >
@@ -108,13 +128,12 @@ export default function AdvisorSelectionPage({
             </div>
           </button>
           
-          {/* User Profile */}
-          <div className="bg-[#303030] border border-[#535353] rounded-lg px-4 py-2 flex items-center space-x-3">
-            <div className="w-6 h-6 bg-[#464646] rounded-full"></div>
-            <span className="text-white text-sm font-medium">0xl..2i8D</span>
-          </div>
+          {/* User Profile with Dropdown */}
+          <WalletDropdown position="right" />
         </div>
       </div>
+
+
 
       {/* Connection Status Overlay */}
       {isCreatingStream && (

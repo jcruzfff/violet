@@ -1,16 +1,17 @@
 'use client'
 
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react'
 import { createGelatoSmartWalletClient, sponsored } from '@gelatonetwork/smartwallet'
 import { baseSepolia } from 'viem/chains'
 import { http, createWalletClient } from 'viem'
-import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts'
+import { privateKeyToAccount } from 'viem/accounts'
 
 // User interface
 export interface User {
   walletAddress?: string
   smartWalletAddress?: string
   isAuthenticated: boolean
+  privateKey?: string // Store private key for persistence
 }
 
 // Simplified Smart Wallet Client type to avoid viem conflicts
@@ -33,6 +34,8 @@ interface WalletContextType {
   disconnectWallet: () => void
   isConnecting: boolean
   sendTestTransaction: () => Promise<void>
+  onDisconnectCallback?: () => void
+  setOnDisconnectCallback: (callback: () => void) => void
 }
 
 // Create context
@@ -42,7 +45,9 @@ const WalletContext = createContext<WalletContextType>({
   connectWallet: async () => {},
   disconnectWallet: () => {},
   isConnecting: false,
-  sendTestTransaction: async () => {}
+  sendTestTransaction: async () => {},
+  onDisconnectCallback: undefined,
+  setOnDisconnectCallback: () => {}
 })
 
 // Custom hook to use wallet context
@@ -54,11 +59,42 @@ export const useWallet = () => {
   return context
 }
 
+// Helper functions for localStorage
+const WALLET_STORAGE_KEY = 'gelato_wallet_data'
+
+const saveWalletToStorage = (user: User) => {
+  try {
+    localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(user))
+  } catch (error) {
+    console.warn('Failed to save wallet to localStorage:', error)
+  }
+}
+
+const loadWalletFromStorage = (): User | null => {
+  try {
+    const stored = localStorage.getItem(WALLET_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch (error) {
+    console.warn('Failed to load wallet from localStorage:', error)
+    return null
+  }
+}
+
+const clearWalletFromStorage = () => {
+  try {
+    localStorage.removeItem(WALLET_STORAGE_KEY)
+  } catch (error) {
+    console.warn('Failed to clear wallet from localStorage:', error)
+  }
+}
+
 // Provider component
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [smartWalletClient, setSmartWalletClient] = useState<GelatoSmartWalletClient>(null)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const [onDisconnectCallback, setOnDisconnectCallback] = useState<(() => void) | undefined>()
 
   // Use Base Sepolia as our test chain
   const testChain = baseSepolia
@@ -68,6 +104,77 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   console.log('  - GELATO_SPONSOR_API_KEY:', process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY ? 'Set' : 'Missing')
   console.log('  - Chain ID:', testChain.id)
   console.log('  - Chain Name:', testChain.name)
+
+  const restoreWalletFromPrivateKey = useCallback(async (privateKey: string) => {
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY
+      if (!apiKey) {
+        throw new Error('NEXT_PUBLIC_GELATO_SPONSOR_API_KEY is not set')
+      }
+
+      const ownerAccount = privateKeyToAccount(privateKey as `0x${string}`)
+      console.log('✅ Owner account restored:', ownerAccount.address)
+
+      // Create a basic wallet client with viem
+      const walletClient = createWalletClient({
+        account: ownerAccount,
+        chain: testChain,
+        transport: http()
+      })
+
+      // Create Gelato Smart Wallet Client
+      const gelatoClient = await createGelatoSmartWalletClient(
+        walletClient as Parameters<typeof createGelatoSmartWalletClient>[0], 
+        {
+          apiKey: apiKey,
+          scw: {
+            type: "gelato"
+          }
+        }
+      )
+      
+      const smartWalletAddress = gelatoClient.account.address
+      
+      // Type assertion to handle the interface mismatch
+      setSmartWalletClient(gelatoClient as GelatoSmartWalletClient)
+      
+      const userData: User = {
+        walletAddress: ownerAccount.address,
+        smartWalletAddress: smartWalletAddress,
+        isAuthenticated: true,
+        privateKey: privateKey
+      }
+      
+      setUser(userData)
+      saveWalletToStorage(userData)
+      console.log('✅ Wallet restored successfully!')
+
+    } catch (error) {
+      console.error('❌ Error restoring wallet:', error)
+      throw error
+    }
+  }, [testChain])
+
+  // Load wallet from localStorage on initialization
+  useEffect(() => {
+    const initializeWallet = async () => {
+      const savedUser = loadWalletFromStorage()
+      if (savedUser && savedUser.privateKey) {
+        console.log('🔄 Restoring wallet from localStorage...')
+        try {
+          // Recreate the wallet client from saved private key
+          await restoreWalletFromPrivateKey(savedUser.privateKey)
+        } catch (error) {
+          console.error('❌ Failed to restore wallet:', error)
+          // Clear invalid data
+          clearWalletFromStorage()
+        }
+      }
+      setIsInitialized(true)
+    }
+
+    initializeWallet()
+  }, [restoreWalletFromPrivateKey])
 
   const connectWallet = async () => {
     try {
@@ -91,46 +198,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log('  - Contains numbers:', /\d/.test(apiKey))
       console.log('  - Contains letters:', /[a-zA-Z]/.test(apiKey))
 
-      // Generate a random private key for demo (in production, use user's actual wallet)
-      const privateKey = generatePrivateKey()
-      const ownerAccount = privateKeyToAccount(privateKey)
-      console.log('✅ Owner account created:', ownerAccount.address)
-
-      // Create a basic wallet client with viem
-      const walletClient = createWalletClient({
-        account: ownerAccount,
-        chain: testChain,
-        transport: http()
-      })
-      console.log('✅ Basic wallet client created')
-
-      // Create Gelato Smart Wallet Client with API key and scw config
-      // Use type assertion to handle viem version conflicts
-      console.log('🔧 Creating Gelato client with API key...')
-      const gelatoClient = await createGelatoSmartWalletClient(
-        walletClient as Parameters<typeof createGelatoSmartWalletClient>[0], 
-        {
-          apiKey: apiKey,
-          scw: {
-            type: "gelato" // Specify the smart contract wallet type
-          }
-        }
-      )
-      console.log('✅ Gelato Smart Wallet Client created!')
+      // Check if we already have a saved wallet
+      const savedUser = loadWalletFromStorage()
+      let privateKey: string
       
-      // Get smart wallet address
-      const smartWalletAddress = gelatoClient.account.address
-      console.log('✅ Smart Wallet Address:', smartWalletAddress)
-      console.log('📊 Client object keys:', Object.keys(gelatoClient))
+      if (savedUser && savedUser.privateKey) {
+        console.log('🔄 Using existing wallet from storage')
+        privateKey = savedUser.privateKey
+      } else {
+        console.log('🆕 Generating new wallet')
+        const { generatePrivateKey } = await import('viem/accounts')
+        privateKey = generatePrivateKey()
+      }
 
-      // Type assertion to handle the interface mismatch
-      setSmartWalletClient(gelatoClient as GelatoSmartWalletClient)
-      setUser({
-        walletAddress: ownerAccount.address,
-        smartWalletAddress: smartWalletAddress,
-        isAuthenticated: true
-      })
-
+      await restoreWalletFromPrivateKey(privateKey)
       console.log('🎉 Real Gelato Smart Wallet connection successful!')
 
     } catch (error) {
@@ -139,6 +220,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.error('  - Full error:', error)
     } finally {
       setIsConnecting(false)
+    }
+  }
+
+  // Update setUser to also save to localStorage
+  const updateUser = (userData: User | null) => {
+    setUser(userData)
+    if (userData) {
+      saveWalletToStorage(userData)
+    } else {
+      clearWalletFromStorage()
     }
   }
 
@@ -270,9 +361,26 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }
 
   const disconnectWallet = () => {
-    setUser(null)
+    updateUser(null)
     setSmartWalletClient(null)
-    console.log('🔌 Wallet disconnected')
+    console.log('🔌 Wallet disconnected and cleared from storage')
+    
+    // Call the disconnect callback if it exists
+    if (onDisconnectCallback) {
+      onDisconnectCallback()
+    }
+  }
+
+  // Don't render children until initialization is complete
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-[#141414] flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Initializing wallet...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -283,7 +391,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connectWallet,
         disconnectWallet,
         isConnecting,
-        sendTestTransaction
+        sendTestTransaction,
+        onDisconnectCallback,
+        setOnDisconnectCallback
       }}
     >
       {children}

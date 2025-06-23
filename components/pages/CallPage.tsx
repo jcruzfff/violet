@@ -6,8 +6,10 @@ import ChatWindow from '../UI/ChatWindow'
 import { useHeyGen } from '../../hooks/useHeyGen'
 import { useLiveKit } from '../../hooks/useLiveKit'
 import { useOpenAI } from '../../hooks/useOpenAI'
+import { useWallet } from '../../providers/WalletProvider'
 import { ConversationMessage, StreamData, AIMode } from '../../types'
 import Image from 'next/image'
+import WalletDropdown from '../UI/WalletDropdown'
 
 
 
@@ -36,87 +38,14 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
 
   // Custom hooks
   const { streamData, connectionStatus, createHeyGenStream, sendTextToAvatar, setConnectionStatus } = useHeyGen(initialStreamData)
+  const { user } = useWallet()
   
-  // Refs to avoid stale closures in useEffect (declare after hooks)
+  // Refs to avoid stale closures in useEffect
   const transcribeAudioRef = useRef<((audioBlob: Blob) => Promise<void>) | null>(null)
   const setConnectionStatusRef = useRef(setConnectionStatus)
   const setIsRecordingRef = useRef(setIsRecording)
   const { videoRef, isConnected, connectToLiveKit, disconnect } = useLiveKit(initialStreamData || streamData, setConnectionStatus)
   const { generateOpenAIResponse } = useOpenAI()
-
-  // Auto-connection effect with robust safeguards
-  useEffect(() => {
-    const attemptAutoConnect = async () => {
-      if (!initialStreamData || !advisorName || autoConnectAttempted || isConnected || isAutoConnecting) {
-        return
-      }
-
-      console.log('🚀 Starting auto-connection to', advisorName)
-      setAutoConnectAttempted(true)
-      setIsAutoConnecting(true)
-      setConnectionStatus(`🚀 Auto-connecting to ${advisorName}...`)
-
-      try {
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        if (isConnected) {
-          console.log('Already connected, skipping auto-connect')
-          return
-        }
-
-        await connectToLiveKit()
-        console.log('✅ Auto-connection successful!')
-        setConnectionStatus(`✅ Connected to ${advisorName}! Ready to chat.`)
-        
-      } catch (error) {
-        console.error('❌ Auto-connection failed:', error)
-        setConnectionStatus(`⚠️ Auto-connection failed. Click "Connect to Avatar Stream" to try manually.`)
-      } finally {
-        setIsAutoConnecting(false)
-      }
-    }
-
-    const timeoutId = setTimeout(attemptAutoConnect, 200)
-    return () => clearTimeout(timeoutId)
-  }, [initialStreamData, advisorName, autoConnectAttempted, isConnected, isAutoConnecting, connectToLiveKit, setConnectionStatus])
-
-  // Initial status setup
-  useEffect(() => {
-    if (initialStreamData && advisorName && !autoConnectAttempted) {
-      console.log('💡 CallPage ready with stream data for:', advisorName)
-      setConnectionStatus(`📡 Stream ready for ${advisorName}. Preparing to connect...`)
-    } else if (!initialStreamData) {
-      console.log('⚠️ No initial stream data available')
-      setConnectionStatus('⚠️ No stream data available. Please create a stream.')
-    }
-  }, [initialStreamData, advisorName, autoConnectAttempted, setConnectionStatus])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log('🧹 CallPage unmounting, cleaning up...')
-      try {
-        disconnect()
-      } catch (error) {
-        console.log('Cleanup disconnect error (safe to ignore):', error)
-      }
-    }
-  }, [disconnect])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showRiskDropdown) {
-        const target = event.target as HTMLElement
-        if (!target.closest('.risk-dropdown')) {
-          setShowRiskDropdown(false)
-        }
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showRiskDropdown])
 
   // Message handling
   const handleUserMessage = useCallback(async (userMessage: string) => {
@@ -210,6 +139,138 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
       setConnectionStatus('❌ Transcription failed - try again')
     }
   }, [handleUserMessage, setConnectionStatus])
+
+  // Voice recording handlers
+  const startRecording = useCallback(async () => {
+    console.log('🎤 [Audio] startRecording called')
+    console.log('🎤 [Audio] State check:', {
+      hasMediaRecorder: !!mediaRecorder,
+      isRecording,
+      mediaRecorderState: mediaRecorder?.state
+    })
+    
+    if (!mediaRecorder) {
+      console.warn('🎤 [Audio] No MediaRecorder available')
+      setConnectionStatus('❌ Recording not available')
+      return
+    }
+    
+    if (isRecording) {
+      console.log('🎤 [Audio] Already recording, ignoring start request')
+      return
+    }
+    
+    try {
+      console.log('🎤 [Audio] Starting recording...')
+      mediaRecorder.start()
+      console.log('🎤 [Audio] ✅ Recording started successfully')
+    } catch (error) {
+      console.error('🎤 [Audio] ❌ Error starting recording:', error)
+      setConnectionStatus('❌ Failed to start recording')
+    }
+  }, [mediaRecorder, isRecording, setConnectionStatus])
+
+  const stopRecording = useCallback(async () => {
+    console.log('🎤 [Audio] stopRecording called')
+    console.log('🎤 [Audio] State check:', {
+      hasMediaRecorder: !!mediaRecorder,
+      isRecording,
+      mediaRecorderState: mediaRecorder?.state
+    })
+    
+    if (!mediaRecorder) {
+      console.warn('🎤 [Audio] No MediaRecorder available')
+      return
+    }
+    
+    if (!isRecording || mediaRecorder.state !== 'recording') {
+      console.log('🎤 [Audio] Not currently recording, ignoring stop request')
+      return
+    }
+    
+    try {
+      console.log('🎤 [Audio] Stopping recording...')
+      mediaRecorder.stop()
+      console.log('🎤 [Audio] ✅ Stop command sent successfully')
+    } catch (error) {
+      console.error('🎤 [Audio] ❌ Error stopping recording:', error)
+      setConnectionStatus('❌ Failed to stop recording')
+    }
+  }, [mediaRecorder, isRecording, setConnectionStatus])
+
+  // Auto-connection effect with robust safeguards
+  useEffect(() => {
+    const attemptAutoConnect = async () => {
+      if (!initialStreamData || !advisorName || autoConnectAttempted || isConnected || isAutoConnecting) {
+        return
+      }
+
+      console.log('🚀 Starting auto-connection to', advisorName)
+      setAutoConnectAttempted(true)
+      setIsAutoConnecting(true)
+      setConnectionStatus(`🚀 Auto-connecting to ${advisorName}...`)
+
+      try {
+        await new Promise(resolve => setTimeout(resolve, 800))
+        
+        if (isConnected) {
+          console.log('Already connected, skipping auto-connect')
+          return
+        }
+
+        await connectToLiveKit()
+        console.log('✅ Auto-connection successful!')
+        setConnectionStatus(`✅ Connected to ${advisorName}! Ready to chat.`)
+        
+      } catch (error) {
+        console.error('❌ Auto-connection failed:', error)
+        setConnectionStatus(`⚠️ Auto-connection failed. Click "Connect to Avatar Stream" to try manually.`)
+      } finally {
+        setIsAutoConnecting(false)
+      }
+    }
+
+    const timeoutId = setTimeout(attemptAutoConnect, 200)
+    return () => clearTimeout(timeoutId)
+  }, [initialStreamData, advisorName, autoConnectAttempted, isConnected, isAutoConnecting, connectToLiveKit, setConnectionStatus])
+
+  // Initial status setup
+  useEffect(() => {
+    if (initialStreamData && advisorName && !autoConnectAttempted) {
+      console.log('💡 CallPage ready with stream data for:', advisorName)
+      setConnectionStatus(`📡 Stream ready for ${advisorName}. Preparing to connect...`)
+    } else if (!initialStreamData) {
+      console.log('⚠️ No initial stream data available')
+      setConnectionStatus('⚠️ No stream data available. Please create a stream.')
+    }
+  }, [initialStreamData, advisorName, autoConnectAttempted, setConnectionStatus])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log('🧹 CallPage unmounting, cleaning up...')
+      try {
+        disconnect()
+      } catch (error) {
+        console.log('Cleanup disconnect error (safe to ignore):', error)
+      }
+    }
+  }, [disconnect])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showRiskDropdown) {
+        const target = event.target as HTMLElement
+        if (!target.closest('.risk-dropdown')) {
+          setShowRiskDropdown(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showRiskDropdown])
 
   // Update the refs whenever the functions change
   useEffect(() => {
@@ -329,67 +390,18 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Intentionally empty to prevent infinite loop - refs handle updates
 
-  // Voice recording handlers
-  const startRecording = useCallback(async () => {
-    console.log('🎤 [Audio] startRecording called')
-    console.log('🎤 [Audio] State check:', {
-      hasMediaRecorder: !!mediaRecorder,
-      isRecording,
-      isAvatarSpeaking,
-      recorderState: mediaRecorder?.state
-    })
-
-    if (isAvatarSpeaking) {
-      console.log('🎤 [Audio] ❌ Cannot record while avatar is speaking')
-      setConnectionStatus('❌ Cannot record while avatar is speaking')
-      return
-    }
-
-    if (!mediaRecorder) {
-      console.log('🎤 [Audio] ❌ MediaRecorder not available')
-      setConnectionStatus('❌ Audio recording not available')
-      return
-    }
-
-    if (isRecording || mediaRecorder.state === 'recording') {
-      console.log('🎤 [Audio] ⚠️ Already recording')
-      return
-    }
-
-    try {
-      console.log('🎤 [Audio] 🚀 Starting audio recording...')
-      mediaRecorder.start()
-      
-    } catch (error) {
-      console.error('🎤 [Audio] ❌ Error starting recording:', error)
-      setIsRecording(false)
-      
-      const err = error as Error
-      setConnectionStatus(`❌ Recording start error: ${err.message || 'Unknown error'}`)
-    }
-  }, [mediaRecorder, isRecording, isAvatarSpeaking, setConnectionStatus])
-
-  const stopRecording = useCallback(() => {
-    console.log('🎤 [Audio] stopRecording called')
-    
-    if (!mediaRecorder) {
-      console.log('🎤 [Audio] ❌ MediaRecorder not available')
-      return
-    }
-
-    if (!isRecording && mediaRecorder.state !== 'recording') {
-      console.log('🎤 [Audio] ⚠️ Not currently recording')
-      return
-    }
-
-    try {
-      console.log('🎤 [Audio] ⏹️ Stopping audio recording...')
-      mediaRecorder.stop()
-    } catch (error) {
-      console.error('🎤 [Audio] ❌ Error stopping recording:', error)
-      setIsRecording(false)
-    }
-  }, [mediaRecorder, isRecording])
+  // Wallet protection check - must be AFTER all hooks
+  if (!user) {
+    onBackAction() // Go back to previous page
+    return (
+      <div className="min-h-screen bg-[#141414] flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Redirecting to connect wallet...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`bg-[#141414] relative w-full h-screen overflow-hidden ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
@@ -458,13 +470,17 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
                 <span className="text-white text-sm font-medium tracking-[-0.28px]">$123.47</span>
               </div>
               
-              {/* User Profile */}
-              <div className="bg-[#303030] border border-[#535353] rounded-lg h-10 px-4 flex items-center space-x-2">
-                <div className="w-[25px] h-[25px] bg-[#464646] rounded-full overflow-hidden">
-                  {/* User avatar placeholder */}
+              {/* User Profile with Wallet Dropdown */}
+              {user ? (
+                <WalletDropdown position="right" />
+              ) : (
+                <div className="bg-[#303030] border border-[#535353] rounded-lg h-10 px-4 flex items-center space-x-2">
+                  <div className="w-[25px] h-[25px] bg-[#464646] rounded-full overflow-hidden">
+                    {/* User avatar placeholder */}
+                  </div>
+                  <span className="text-white text-sm font-medium tracking-[-0.28px]">No wallet</span>
                 </div>
-                <span className="text-white text-sm font-medium tracking-[-0.28px]">0xl..2i8D</span>
-              </div>
+              )}
               
               {/* Menu button */}
               <button className="bg-[#303030] border border-[#535353] rounded-lg w-10 h-10 flex items-center justify-center hover:bg-[#404040] transition-colors">
