@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useWallet } from '../../providers/WalletProvider'
+import Image from 'next/image'
 
 interface WalletDropdownProps {
   position?: 'left' | 'right'
@@ -64,20 +65,48 @@ export default function WalletDropdown({ position = 'right' }: WalletDropdownPro
               {user && (
                 <div className="space-y-3 mb-4">
                   <div>
-                    <p className="text-gray-400 text-xs mb-1">Owner Address</p>
-                    <p className="text-blue-400 font-mono text-xs break-all">{user.walletAddress}</p>
-                  </div>
-                  <div>
                     <p className="text-gray-400 text-xs mb-1">Smart Wallet Address</p>
                     <p className="text-[#B38D5F] font-mono text-xs break-all">{user.smartWalletAddress}</p>
                   </div>
+                  
+                  {/* Investment Settings Display */}
+                  {user.investmentSettings && (
+                    <div className="bg-[#1e1e1e] rounded-lg p-3 border border-[#404040]">
+                      <p className="text-gray-400 text-xs mb-2 font-medium">Investment Settings</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300 text-xs">Amount:</span>
+                          <span className="text-white text-xs font-medium">${user.investmentSettings.investmentAmount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300 text-xs">Risk Level:</span>
+                          <div className="flex items-center space-x-1">
+                            <Image 
+                              src={`/icons/${user.investmentSettings.riskLevel === 'Aggressive' ? 'aggreseive' : user.investmentSettings.riskLevel.toLowerCase()}-icon.svg`}
+                              alt={user.investmentSettings.riskLevel}
+                              width={12}
+                              height={12}
+                              className="w-3 h-3"
+                            />
+                            <span className="text-white text-xs font-medium">{user.investmentSettings.riskLevel}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300 text-xs">Time Horizon:</span>
+                          <span className="text-white text-xs font-medium">
+                            {user.investmentSettings.timeHorizon.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="border-t border-[#404040] pt-4">
                 <button
                   onClick={handleDisconnect}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                  className="w-full bg-[#272727] border border-[#404040] text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#2f2f2f] transition-colors flex items-center justify-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

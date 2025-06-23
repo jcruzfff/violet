@@ -150,17 +150,7 @@ export default function WalletConnectPage({ onNextAction }: WalletConnectPagePro
               )}
             </div>
 
-            {/* Manual Continue Button (if auto-advance fails) */}
-            {currentStep === 'complete' && (
-              <div className="mt-6 pt-6 border-t border-[#2a2a2a]">
-                <button
-                  onClick={handleNextAction}
-                  className="w-full bg-[#B38D5F] text-white py-3 rounded-xl text-base font-medium hover:bg-[#B38D5F]/80 transition-all duration-300"
-                >
-                  Continue to Portfolio →
-                </button>
-              </div>
-            )}
+
           </div>
 
           {/* Footer Message */}
