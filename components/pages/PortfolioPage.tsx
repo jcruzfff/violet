@@ -1,9 +1,14 @@
+import { useWallet } from '../../providers/WalletProvider'
+
 interface PortfolioPageProps {
   onNext: () => void
   onBack: () => void
 }
 
 export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
+  // Get wallet context
+  const { user } = useWallet()
+
   // Portfolio data with sophisticated color palette
   const portfolioData = [
     { name: 'Bitcoin', symbol: 'BTC', percentage: 40, value: 9827, change: 5.2, color: '#507084', icon: '₿' }, // Augusta Blue
@@ -55,6 +60,12 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
     ].join(' ')
   }
 
+  // Format wallet address for display
+  const formatWalletAddress = (address: string) => {
+    if (!address) return 'No wallet'
+    return `${address.slice(0, 4)}..${address.slice(-4)}`
+  }
+
   return (
     <div className="min-h-screen bg-[#141414] relative">
       {/* Header */}
@@ -70,10 +81,12 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
             </div>
           </button>
           
-          {/* User Profile */}
+          {/* User Profile - Now showing real wallet info */}
           <div className="bg-[#303030] border border-[#535353] rounded-lg px-4 py-2 flex items-center space-x-3">
             <div className="w-6 h-6 bg-[#464646] rounded-full"></div>
-            <span className="text-white text-sm font-medium">0xl..2i8D</span>
+            <span className="text-white text-sm font-medium">
+              {user?.walletAddress ? formatWalletAddress(user.walletAddress) : 'No wallet'}
+            </span>
           </div>
         </div>
       </div>
@@ -150,6 +163,29 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
             </div>
           </div>
         </div>
+
+        {/* Wallet Status */}
+        {user && (
+          <div className="mb-4 bg-[#272727] rounded-lg p-3 max-w-2xl w-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-white text-sm font-medium">Wallet Connected</p>
+                  <p className="text-gray-400 text-xs">Flow EVM • {formatWalletAddress(user.walletAddress || '')}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-green-500 text-sm font-medium">✓ Active</p>
+                <p className="text-gray-400 text-xs">Smart Wallet</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Call Advisor Button */}
         <button

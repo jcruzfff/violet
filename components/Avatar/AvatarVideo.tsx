@@ -8,7 +8,6 @@ interface AvatarVideoProps {
   isConnected: boolean
   onCreateStream: () => void
   onConnect: () => void
-  onDisconnect: () => void
 }
 
 export const AvatarVideo: React.FC<AvatarVideoProps> = ({
@@ -17,8 +16,7 @@ export const AvatarVideo: React.FC<AvatarVideoProps> = ({
   streamData,
   isConnected,
   onCreateStream,
-  onConnect,
-  onDisconnect
+  onConnect
 }) => {
   return (
     <div className="relative w-full h-full bg-black rounded-tr-[32px] rounded-br-[32px] overflow-hidden">

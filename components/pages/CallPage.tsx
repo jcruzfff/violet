@@ -575,7 +575,6 @@ export default function CallPage({ onBackAction, initialStreamData, advisorName 
                 isConnected={isConnected}
                 onCreateStream={createHeyGenStream}
                 onConnect={connectToLiveKit}
-                onDisconnect={disconnect}
               />
             </div>
           </div>

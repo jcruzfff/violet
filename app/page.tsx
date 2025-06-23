@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { StreamData } from '../types'
-import LandingPage from '../components/pages/LandingPage'
+import { WalletProvider } from '../providers/WalletProvider'
+import WalletConnectPage from '../components/pages/WalletConnectPage'
 import PortfolioPage from '../components/pages/PortfolioPage'
 import AdvisorSelectionPage from '../components/pages/AdvisorSelectionPage'
 import CallPage from '../components/pages/CallPage'
@@ -13,12 +14,27 @@ export default function App() {
   const [streamData, setStreamData] = useState<StreamData | null>(null)
   const [selectedAdvisor, setSelectedAdvisor] = useState<string>('')
 
+  // Debug step changes
+  useEffect(() => {
+    console.log('📍 App: Current step changed to:', currentStep)
+  }, [currentStep])
+
   const nextStep = () => {
-    setCurrentStep(prev => Math.min(prev + 1, 4))
+    console.log('⏭️ App: nextStep called, current:', currentStep)
+    setCurrentStep(prev => {
+      const newStep = Math.min(prev + 1, 4)
+      console.log('➡️ App: Moving to step:', newStep)
+      return newStep
+    })
   }
 
   const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1))
+    console.log('⏮️ App: prevStep called, current:', currentStep)
+    setCurrentStep(prev => {
+      const newStep = Math.max(prev - 1, 1)
+      console.log('⬅️ App: Moving to step:', newStep)
+      return newStep
+    })
   }
 
   // Debug stream data updates
@@ -33,24 +49,26 @@ export default function App() {
   }
 
   return (
-    <div>
-      {currentStep === 1 && <LandingPage onNext={nextStep} />}
-      {currentStep === 2 && <PortfolioPage onNext={nextStep} onBack={prevStep} />}
-      {currentStep === 3 && (
-        <AdvisorSelectionPage 
-          onNext={nextStep} 
-          onBack={prevStep}
-          onStreamCreated={handleStreamCreated}
-          onAdvisorSelected={handleAdvisorSelected}
-        />
-      )}
-      {currentStep === 4 && (
-        <CallPage 
-          onBackAction={prevStep} 
-          initialStreamData={streamData}
-          advisorName={selectedAdvisor}
-        />
-      )}
-    </div>
+    <WalletProvider>
+      <div>
+        {currentStep === 1 && <WalletConnectPage onNextAction={nextStep} />}
+        {currentStep === 2 && <PortfolioPage onNext={nextStep} onBack={prevStep} />}
+        {currentStep === 3 && (
+          <AdvisorSelectionPage 
+            onNext={nextStep} 
+            onBack={prevStep}
+            onStreamCreated={handleStreamCreated}
+            onAdvisorSelected={handleAdvisorSelected}
+          />
+        )}
+        {currentStep === 4 && (
+          <CallPage 
+            onBackAction={prevStep} 
+            initialStreamData={streamData}
+            advisorName={selectedAdvisor}
+          />
+        )}
+      </div>
+    </WalletProvider>
   )
 } 

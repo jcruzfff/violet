@@ -1,0 +1,292 @@
+'use client'
+
+import React, { createContext, useContext, useState, ReactNode } from 'react'
+import { createGelatoSmartWalletClient, sponsored } from '@gelatonetwork/smartwallet'
+import { baseSepolia } from 'viem/chains'
+import { http, createWalletClient } from 'viem'
+import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts'
+
+// User interface
+export interface User {
+  walletAddress?: string
+  smartWalletAddress?: string
+  isAuthenticated: boolean
+}
+
+// Simplified Smart Wallet Client type to avoid viem conflicts
+type ExecuteParams = {
+  payment: ReturnType<typeof sponsored>
+  calls: Array<{ to: string; data?: string; value: bigint }>
+}
+
+type GelatoSmartWalletClient = {
+  account: { address: string }
+  execute: (params: ExecuteParams) => Promise<{ id: string; wait: () => Promise<string> }>
+  estimate?: (params: ExecuteParams) => Promise<unknown>
+} | null
+
+// Wallet context interface
+interface WalletContextType {
+  user: User | null
+  smartWalletClient: GelatoSmartWalletClient
+  connectWallet: () => Promise<void>
+  disconnectWallet: () => void
+  isConnecting: boolean
+  sendTestTransaction: () => Promise<void>
+}
+
+// Create context
+const WalletContext = createContext<WalletContextType>({
+  user: null,
+  smartWalletClient: null,
+  connectWallet: async () => {},
+  disconnectWallet: () => {},
+  isConnecting: false,
+  sendTestTransaction: async () => {}
+})
+
+// Custom hook to use wallet context
+export const useWallet = () => {
+  const context = useContext(WalletContext)
+  if (!context) {
+    throw new Error('useWallet must be used within a WalletProvider')
+  }
+  return context
+}
+
+// Provider component
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [smartWalletClient, setSmartWalletClient] = useState<GelatoSmartWalletClient>(null)
+  const [isConnecting, setIsConnecting] = useState(false)
+
+  // Use Base Sepolia as our test chain
+  const testChain = baseSepolia
+
+  // Debug environment variables
+  console.log('🔧 Direct Smart Wallet Environment:')
+  console.log('  - GELATO_SPONSOR_API_KEY:', process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY ? 'Set' : 'Missing')
+  console.log('  - Chain ID:', testChain.id)
+  console.log('  - Chain Name:', testChain.name)
+
+  const connectWallet = async () => {
+    try {
+      setIsConnecting(true)
+      console.log('🚀 Creating Real Gelato Smart Wallet...')
+      console.log('📋 Environment Check:')
+      console.log('  - API Key exists:', !!process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY)
+      console.log('  - Chain:', testChain.name, testChain.id)
+
+      // Validate API key format
+      const apiKey = process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY
+      if (!apiKey) {
+        throw new Error('NEXT_PUBLIC_GELATO_SPONSOR_API_KEY is not set')
+      }
+      if (apiKey.length < 20) {
+        console.warn('⚠️ API key seems too short, might be invalid')
+      }
+      console.log('🔑 API key format check:')
+      console.log('  - Length:', apiKey.length)
+      console.log('  - Prefix:', apiKey.substring(0, 8) + '...')
+      console.log('  - Contains numbers:', /\d/.test(apiKey))
+      console.log('  - Contains letters:', /[a-zA-Z]/.test(apiKey))
+
+      // Generate a random private key for demo (in production, use user's actual wallet)
+      const privateKey = generatePrivateKey()
+      const ownerAccount = privateKeyToAccount(privateKey)
+      console.log('✅ Owner account created:', ownerAccount.address)
+
+      // Create a basic wallet client with viem
+      const walletClient = createWalletClient({
+        account: ownerAccount,
+        chain: testChain,
+        transport: http()
+      })
+      console.log('✅ Basic wallet client created')
+
+      // Create Gelato Smart Wallet Client with API key and scw config
+      // Use type assertion to handle viem version conflicts
+      console.log('🔧 Creating Gelato client with API key...')
+      const gelatoClient = await createGelatoSmartWalletClient(
+        walletClient as Parameters<typeof createGelatoSmartWalletClient>[0], 
+        {
+          apiKey: apiKey,
+          scw: {
+            type: "gelato" // Specify the smart contract wallet type
+          }
+        }
+      )
+      console.log('✅ Gelato Smart Wallet Client created!')
+      
+      // Get smart wallet address
+      const smartWalletAddress = gelatoClient.account.address
+      console.log('✅ Smart Wallet Address:', smartWalletAddress)
+      console.log('📊 Client object keys:', Object.keys(gelatoClient))
+
+      // Type assertion to handle the interface mismatch
+      setSmartWalletClient(gelatoClient as GelatoSmartWalletClient)
+      setUser({
+        walletAddress: ownerAccount.address,
+        smartWalletAddress: smartWalletAddress,
+        isAuthenticated: true
+      })
+
+      console.log('🎉 Real Gelato Smart Wallet connection successful!')
+
+    } catch (error) {
+      console.error('❌ Error creating Gelato Smart Wallet:')
+      console.error('  - Error message:', error instanceof Error ? error.message : String(error))
+      console.error('  - Full error:', error)
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const sendTestTransaction = async () => {
+    if (!smartWalletClient) {
+      console.error('❌ No smart wallet client available')
+      return
+    }
+
+    try {
+      console.log('🚀 Testing Smart Wallet with deployment transaction...')
+      
+      // Check if client has estimate method for safer testing
+      const hasEstimate = 'estimate' in smartWalletClient && typeof smartWalletClient.estimate === 'function'
+      console.log('📊 Client capabilities:', { hasEstimate, hasExecute: 'execute' in smartWalletClient })
+      
+      // Use a simple contract interaction that doesn't require ETH balance
+      // This will deploy the smart wallet if it doesn't exist
+      const testRecipient = smartWalletClient.account.address // Send to self
+      
+      console.log('📋 Transaction details:')
+      console.log('  - From (Smart Wallet):', smartWalletClient.account.address)
+      console.log('  - To (Self - Deployment Test):', testRecipient)
+      console.log('  - Value: 0 ETH (deployment only)')
+      console.log('  - Payment: Sponsored by Gelato')
+      console.log('  - API Key exists:', !!process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY)
+      
+      const transactionParams = {
+        payment: sponsored(process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY as string),
+        calls: [
+          {
+            to: testRecipient, // Send to self
+            data: "0x", // Empty data
+            value: BigInt('0'), // Zero value - just deploy the wallet
+          }
+        ]
+      }
+      
+      // Try gas estimation first if available
+      if (hasEstimate) {
+        try {
+          console.log('🔍 Estimating gas first...')
+          const gasEstimate = await smartWalletClient.estimate!(transactionParams)
+          console.log('✅ Gas estimation successful:', gasEstimate)
+        } catch (estimateError) {
+          console.log('⚠️ Gas estimation failed, proceeding with direct execution...')
+          console.log('  - Estimate error:', estimateError instanceof Error ? estimateError.message : String(estimateError))
+        }
+      }
+      
+      // Send a zero-value sponsored transaction to deploy the wallet
+      console.log('📤 Executing transaction...')
+      const results = await smartWalletClient.execute(transactionParams)
+
+      console.log('✅ Smart Wallet deployment/test transaction submitted!')
+      console.log('  - UserOp ID:', results.id)
+      console.log('  - Results object keys:', Object.keys(results))
+      
+      // Wait for transaction confirmation
+      console.log('⏳ Waiting for transaction confirmation...')
+      const txHash = await results.wait()
+      console.log('✅ Transaction confirmed!')
+      console.log('  - Transaction hash:', txHash)
+      console.log('  - Explorer link: https://sepolia.basescan.org/tx/' + txHash)
+      console.log('🎉 Smart wallet is now deployed and ready!')
+
+    } catch (error) {
+      console.error('❌ Error with smart wallet transaction:')
+      console.error('  - Error message:', error instanceof Error ? error.message : String(error))
+      console.error('  - Error type:', typeof error)
+      console.error('  - Full error:', error)
+      
+      // Enhanced error analysis
+      if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase()
+        
+        if (errorMsg.includes('execution reverted')) {
+          console.log('💡 Execution Reverted - Possible causes:')
+          console.log('  - Smart wallet deployment failed')
+          console.log('  - Invalid API key or rate limit exceeded')
+          console.log('  - Network/RPC issues with Base Sepolia')
+          console.log('  - Gelato relayer temporarily unavailable')
+          
+          // Try to extract more specific error information
+          if (error.message.includes('AA')) {
+            console.log('🔍 Account Abstraction Error Code detected:')
+            if (error.message.includes('AA10')) console.log('  - AA10: sender already constructed')
+            if (error.message.includes('AA13')) console.log('  - AA13: initCode failed or OOG')
+            if (error.message.includes('AA21')) console.log('  - AA21: didn\'t pay prefund')
+            if (error.message.includes('AA23')) console.log('  - AA23: reverted (or OOG)')
+            if (error.message.includes('AA24')) console.log('  - AA24: signature error')
+          }
+        }
+        
+        if (errorMsg.includes('estimate gas') || errorMsg.includes('gas')) {
+          console.log('💡 Gas Estimation Failed:')
+          console.log('  - This usually means the transaction would fail on-chain')
+          console.log('  - Try with a simpler transaction or check API key')
+          console.log('  - Network might be congested or having issues')
+        }
+        
+        if (errorMsg.includes('invalid signature') || errorMsg.includes('unauthorized')) {
+          console.log('💡 Authorization Error:')
+          console.log('  - Check if API key is valid and has correct permissions')
+          console.log('  - Verify sponsor API key matches Gelato dashboard')
+        }
+        
+        if (errorMsg.includes('insufficient')) {
+          console.log('💡 Insufficient Balance:')
+          console.log('  - Gelato sponsor might be out of funds')
+          console.log('  - Check Gelato dashboard for sponsor balance')
+        }
+        
+        if (errorMsg.includes('rate limit') || errorMsg.includes('429')) {
+          console.log('💡 Rate Limiting:')
+          console.log('  - Gelato API rate limit exceeded')
+          console.log('  - Wait a moment and try again')
+        }
+      }
+      
+      // Try to provide actionable next steps
+      console.log('🔧 Troubleshooting steps:')
+      console.log('  1. Verify NEXT_PUBLIC_GELATO_SPONSOR_API_KEY is correct')
+      console.log('  2. Check Gelato dashboard for sponsor status')
+      console.log('  3. Try again in a few moments (network issues)')
+      console.log('  4. Check Base Sepolia RPC status')
+      console.log('  5. Verify API key has Base Sepolia permissions')
+    }
+  }
+
+  const disconnectWallet = () => {
+    setUser(null)
+    setSmartWalletClient(null)
+    console.log('🔌 Wallet disconnected')
+  }
+
+  return (
+    <WalletContext.Provider
+      value={{
+        user,
+        smartWalletClient,
+        connectWallet,
+        disconnectWallet,
+        isConnecting,
+        sendTestTransaction
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
+  )
+} 
