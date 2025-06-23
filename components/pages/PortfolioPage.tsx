@@ -1,6 +1,8 @@
+import React, { useState } from 'react'
 import { useWallet } from '../../providers/WalletProvider'
 import { useSupraPrices } from '../../hooks/useSupraPrices'
 import WalletDropdown from '../UI/WalletDropdown'
+import InvestmentSetupOverlay, { InvestmentSettings } from '../UI/InvestmentSetupOverlay'
 
 interface PortfolioPageProps {
   onNext: () => void
@@ -19,9 +21,35 @@ const symbolMap: Record<string, string> = {
 }
 
 export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
-  // Get wallet context
+  // Get wallet contexts
   const { user } = useWallet()
   const { data, loading } = useSupraPrices()
+  const { user, updateInvestmentSettings } = useWallet()
+  
+  // State for investment setup overlay
+  const [showInvestmentSetup, setShowInvestmentSetup] = useState<boolean>(false)
+
+  // Show investment setup overlay for first-time users
+  React.useEffect(() => {
+    console.log('🔍 PortfolioPage: Checking first-time user status')
+    console.log('  - User:', !!user)
+    console.log('  - Is first time user:', user?.isFirstTimeUser)
+    console.log('  - Has investment settings:', !!user?.investmentSettings)
+    
+    if (user && user.isFirstTimeUser && !user.investmentSettings) {
+      console.log('✅ PortfolioPage: Showing investment setup overlay for first-time user')
+      setShowInvestmentSetup(true)
+    } else {
+      console.log('⏭️ PortfolioPage: Not showing overlay - returning user or has settings')
+    }
+  }, [user])
+
+  // Handle investment settings save
+  const handleInvestmentSettingsSave = (settings: InvestmentSettings) => {
+    updateInvestmentSettings(settings)
+    setShowInvestmentSetup(false)
+  }
+
   // Redirect if no wallet connected
   if (!user) {
     onBack() // Go back to landing page
@@ -94,11 +122,7 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
     ].join(' ')
   }
 
-  // Format wallet address for display
-  const formatWalletAddress = (address: string) => {
-    if (!address) return 'No wallet'
-    return `${address.slice(0, 4)}..${address.slice(-4)}`
-  }
+
 
   return (
     <div className="min-h-screen bg-[#141414] relative">
@@ -115,8 +139,16 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
             </div>
           </button>
           
-          {/* User Profile with Dropdown */}
-          <WalletDropdown position="right" />
+          {/* Right Side: Wallet Dropdown and Call Advisor Button */}
+          <div className="flex items-center space-x-4">
+            <WalletDropdown position="right" />
+            <button
+              onClick={onNext}
+              className="bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition-all duration-300 h-[40px]"
+            >
+              Call Advisor
+            </button>
+          </div>
         </div>
       </div>
 
@@ -195,40 +227,11 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
           </div>
         </div>
 
-        {/* Wallet Status */}
-        {user && (
-          <div className="mb-4 bg-[#272727] rounded-lg p-3 max-w-2xl w-full">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-white text-sm font-medium">Wallet Connected</p>
-                  <p className="text-gray-400 text-xs">Base Sepolia • {formatWalletAddress(user.smartWalletAddress || user.walletAddress || '')}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-green-500 text-sm font-medium">✓ Active</p>
-                <p className="text-gray-400 text-xs">Smart Wallet</p>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Call Advisor Button */}
-        <button
-          onClick={onNext}
-          className="bg-white text-black px-16 py-3 rounded-xl text-base font-medium hover:bg-gray-100 transition-all duration-300 mb-8"
-        >
-          Call Advisor
-        </button>
 
         {/* Portfolio Items Grid */}
-        <div className="grid grid-cols-2 gap-4 max-w-2xl w-full mb-4">
-          {portfolioData?.map((item:any, index:any) => (
+        <div className="grid grid-cols-2 gap-4 max-w-2xl w-full  my-4 mt-12">
+          {portfolioData.map((item:any, index:any) => (
             <div key={index} className="bg-[#272727] rounded-xl p-4 flex items-center justify-between hover:bg-[#2f2f2f] transition-colors">
               <div className="flex items-center space-x-3">
                 <div 
@@ -265,6 +268,12 @@ export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Investment Setup Overlay */}
+      <InvestmentSetupOverlay
+        isVisible={showInvestmentSetup}
+        onSave={handleInvestmentSettingsSave}
+      />
     </div>
   )
 } 

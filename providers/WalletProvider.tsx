@@ -6,12 +6,21 @@ import { baseSepolia } from 'viem/chains'
 import { http, createWalletClient } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+// Investment settings interface
+export interface InvestmentSettings {
+  investmentAmount: number
+  riskLevel: 'Conservative' | 'Balanced' | 'Aggressive'
+  timeHorizon: '3-months' | '6-months' | '1-year' | '3-years' | '5-years'
+}
+
 // User interface
 export interface User {
   walletAddress?: string
   smartWalletAddress?: string
   isAuthenticated: boolean
   privateKey?: string // Store private key for persistence
+  investmentSettings?: InvestmentSettings
+  isFirstTimeUser?: boolean // Track if this is their first login
 }
 
 // Simplified Smart Wallet Client type to avoid viem conflicts
@@ -36,6 +45,7 @@ interface WalletContextType {
   sendTestTransaction: () => Promise<void>
   onDisconnectCallback?: () => void
   setOnDisconnectCallback: (callback: () => void) => void
+  updateInvestmentSettings: (settings: InvestmentSettings) => void
 }
 
 // Create context
@@ -47,7 +57,8 @@ const WalletContext = createContext<WalletContextType>({
   isConnecting: false,
   sendTestTransaction: async () => {},
   onDisconnectCallback: undefined,
-  setOnDisconnectCallback: () => {}
+  setOnDisconnectCallback: () => {},
+  updateInvestmentSettings: () => {}
 })
 
 // Custom hook to use wallet context
@@ -105,7 +116,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   console.log('  - Chain ID:', testChain.id)
   console.log('  - Chain Name:', testChain.name)
 
-  const restoreWalletFromPrivateKey = useCallback(async (privateKey: string) => {
+  const restoreWalletFromPrivateKey = useCallback(async (privateKey: string, isNewWallet: boolean = false) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_GELATO_SPONSOR_API_KEY
       if (!apiKey) {
@@ -138,16 +149,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Type assertion to handle the interface mismatch
       setSmartWalletClient(gelatoClient as GelatoSmartWalletClient)
       
+      // Determine if this is a first-time user
+      const existingWalletData = loadWalletFromStorage()
+      const isFirstTime = isNewWallet || !existingWalletData || !existingWalletData.investmentSettings
+
       const userData: User = {
         walletAddress: ownerAccount.address,
         smartWalletAddress: smartWalletAddress,
         isAuthenticated: true,
-        privateKey: privateKey
+        privateKey: privateKey,
+        isFirstTimeUser: isFirstTime
       }
       
       setUser(userData)
       saveWalletToStorage(userData)
-      console.log('✅ Wallet restored successfully!')
+      console.log('✅ Wallet restored successfully!', isNewWallet ? '(New wallet)' : '(Existing wallet)')
+      console.log('🔍 First time user:', isFirstTime)
 
     } catch (error) {
       console.error('❌ Error restoring wallet:', error)
@@ -201,6 +218,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Check if we already have a saved wallet
       const savedUser = loadWalletFromStorage()
       let privateKey: string
+      let isNewWallet = false
       
       if (savedUser && savedUser.privateKey) {
         console.log('🔄 Using existing wallet from storage')
@@ -209,9 +227,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         console.log('🆕 Generating new wallet')
         const { generatePrivateKey } = await import('viem/accounts')
         privateKey = generatePrivateKey()
+        isNewWallet = true
       }
 
-      await restoreWalletFromPrivateKey(privateKey)
+      await restoreWalletFromPrivateKey(privateKey, isNewWallet)
       console.log('🎉 Real Gelato Smart Wallet connection successful!')
 
     } catch (error) {
@@ -360,6 +379,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateInvestmentSettings = (settings: InvestmentSettings) => {
+    if (!user) {
+      console.warn('⚠️ Cannot update investment settings: no user connected')
+      return
+    }
+
+    const updatedUser: User = {
+      ...user,
+      investmentSettings: settings,
+      isFirstTimeUser: false // No longer first time after setting preferences
+    }
+
+    updateUser(updatedUser)
+    console.log('✅ Investment settings updated:', settings)
+  }
+
   const disconnectWallet = () => {
     updateUser(null)
     setSmartWalletClient(null)
@@ -393,7 +428,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isConnecting,
         sendTestTransaction,
         onDisconnectCallback,
-        setOnDisconnectCallback
+        setOnDisconnectCallback,
+        updateInvestmentSettings
       }}
     >
       {children}

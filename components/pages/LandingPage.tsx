@@ -50,7 +50,7 @@ export default function LandingPage({ onNext }: LandingPageProps) {
         <div className="text-center text-white max-w-4xl -mt-24">
           {/* Main Heading */}
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
-          Accessible Wealth Management for Everyone
+          Accessible Wealth Management
           </h1>
           
           {/* Subtitle */}
