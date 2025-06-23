@@ -83,7 +83,7 @@ NEXT_PUBLIC_PRIVY_APP_ID=your_app_id_here
 5. Add to your `.env.local`:
 
 ```bash
-NEXT_PUBLIC_GELATO_SPONSOR_API_KEY=your_sponsor_key_here
+NEXT_PUBLIC_GELATO_SPONSOR_API_KEY=3a919bc43ed44ff884934339cd1f30b5
 ```
 
 ## Step 3: Environment Variables
