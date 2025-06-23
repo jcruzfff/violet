@@ -153,7 +153,7 @@ export default function AdvisorSelectionPage({
             Select Your Advisors
           </h1>
           <p className="text-gray-300 text-base leading-relaxed">
-            Choose from one of our available top exports to help you build
+            Choose from one of our available top experts to help you build
           </p>
         </div>
 
