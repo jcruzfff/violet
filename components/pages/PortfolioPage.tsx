@@ -22,7 +22,6 @@ const symbolMap: Record<string, string> = {
 
 export default function PortfolioPage({ onNext, onBack }: PortfolioPageProps) {
   // Get wallet contexts
-  const { user } = useWallet()
   const { data, loading } = useSupraPrices()
   const { user, updateInvestmentSettings } = useWallet()
   
