@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@gelatonetwork/relay-sdk": "^5.6.0",
     "@gelatonetwork/smartwallet": "^0.0.12",
     "@gelatonetwork/smartwallet-react-privy": "^0.0.12",
     "@gelatonetwork/smartwallet-react-sdk": "^0.0.12",
